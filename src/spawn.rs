@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use legion::World;
 
 use crate::*;
@@ -6,7 +8,9 @@ static VILLAIN_MARKS : [char; 4] = ['!', '"', '#', '$'];
 
 pub fn spawn_hero (ecs : &mut World, pos : Position) {
     ecs.push((
+        Character,
         Player,
+        Victim,
         pos,
         Render {
             color: ColorPair::new(WHITE, BLACK),
@@ -16,7 +20,10 @@ pub fn spawn_hero (ecs : &mut World, pos : Position) {
 }
 pub fn spawn_villain(ecs : &mut World, pos : Position, i: usize) {
     ecs.push((
-        //Player,
+        Character,
+        Naughty,
+        Hunter,
+        RandomWalk(Instant::now()),
         pos,
         Render {
             color: ColorPair::new(WHITE, BLACK),
@@ -26,7 +33,7 @@ pub fn spawn_villain(ecs : &mut World, pos : Position, i: usize) {
 }
 pub fn spawn_seed(ecs : &mut World, pos : Position) {
     ecs.push((
-        //Player,
+        Food,
         pos,
         Render {
             color: ColorPair::new(WHITE, BLACK),
@@ -34,9 +41,10 @@ pub fn spawn_seed(ecs : &mut World, pos : Position) {
         },
     ));
 }
-pub fn spawn_cherry(ecs : &mut World, pos : Position) {
+pub fn spawn_powerup(ecs : &mut World, pos : Position) {
     ecs.push((
-        //Player,
+        Food,
+        Superfood,
         pos,
         Render {
             color: ColorPair::new(WHITE, BLACK),

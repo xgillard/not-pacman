@@ -6,6 +6,8 @@
 //! Date:    March 2023
 //! Licence: MIT 
 
+use std::time::Instant;
+
 use bracket_lib::{color::ColorPair, terminal::{FontCharType, Point}};
 
 /// This component simply means that the entity it is attached to
@@ -14,7 +16,7 @@ use bracket_lib::{color::ColorPair, terminal::{FontCharType, Point}};
 pub struct Player;
 
 /// The position of an entity on the map
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Position {
     pub x: usize,
     pub y: usize,
@@ -37,3 +39,37 @@ impl Position {
         Point::new(self.x, self.y)
     }
 }
+
+#[derive(Debug, Clone, Copy)]
+pub struct Food;
+
+#[derive(Debug, Clone, Copy)]
+pub struct Superfood;
+
+#[derive(Debug, Clone, Copy)]
+pub struct Naughty;
+
+#[derive(Debug, Clone, Copy)]
+pub struct Hunter;
+
+#[derive(Debug, Clone, Copy)]
+pub struct Victim;
+
+#[derive(Debug, Clone, Copy)]
+pub struct ResetRoles {
+    pub instant: Instant,
+    pub add: Role,
+    pub remove: Role,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Role {
+    Hunter,
+    Victim
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct RandomWalk(pub Instant);
+
+#[derive(Debug, Clone, Copy)]
+pub struct Character;

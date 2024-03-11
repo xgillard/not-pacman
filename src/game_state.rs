@@ -16,12 +16,18 @@ pub struct State {
     resources: Resources,
     systems: Schedule,
 }
-
+impl Default for State {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl State {
     pub fn new() -> Self {
         let ecs = World::default();
-        let resources = Resources::default();
         let systems = build_scheduler();
+        let mut resources = Resources::default();
+        let rng = RandomNumberGenerator::new();
+        resources.insert(rng);
         Self { ecs, resources, systems }
     }
 
@@ -69,7 +75,7 @@ impl State {
         }
         // 
         for cherry in cherries {
-            spawn_cherry(&mut self.ecs, cherry);
+            spawn_powerup(&mut self.ecs, cherry);
         }
         Ok((width, height))
     }
@@ -81,6 +87,8 @@ impl GameState for State {
         ctx.set_active_console(0);
         ctx.cls();
         ctx.set_active_console(1);
+        ctx.cls();
+        ctx.set_active_console(2);
         ctx.cls();
 
         // this keeps track of the key that has potentially been pressed and saves

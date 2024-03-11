@@ -5,6 +5,8 @@
 //! Date:    March 2023
 //! Licence: MIT 
 
+/// some utility functions
+pub mod utils;
 /// any resource manipulated by the game
 pub mod resources;
 /// any game object
@@ -18,6 +20,7 @@ pub mod game_state;
 /// how to spawn stuffs in the game
 pub mod spawn;
 
+pub use utils::*;
 pub use resources::*;
 pub use entities::*;
 pub use components::*;
