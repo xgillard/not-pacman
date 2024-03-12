@@ -29,6 +29,7 @@ pub fn spawn_villain(ecs : &mut World, pos : Position, i: usize) {
         Villain,
         Hunter,
         RandomWalk{time: Instant::now()},
+        SmartBot{time: Instant::now()},
         pos,
         Direction::Down,
         ColorPair::new(WHITE, BLACK),

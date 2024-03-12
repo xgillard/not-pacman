@@ -4,20 +4,9 @@
 //! Date:    March 2023
 //! Licence: MIT 
 
-use crate::{Direction, Map, Position, TileType};
+use bracket_lib::terminal::Point;
 
-/// Returns true iff the entity is allowed to move on to the next position (x,y)
-pub fn can_enter(map: &Map, x: isize, y: isize) -> bool {
-    if x < 0 || x >= map.width as isize {
-        return false;
-    }
-    if y < 0 || y >= map.height as isize {
-        return false;
-    }
-
-    let dest = Position {x: x as usize, y: y as usize};
-    map[dest] == TileType::Floor
-}
+use crate::{Direction, Map, Position};
 
 /// Returns the next position after the movement has been applied. If the movement is not
 /// legal, then the position is simply not updated
@@ -32,7 +21,7 @@ pub fn next_position(map: &Map, curr: Position, direction: Direction) -> Positio
         Direction::Right => x += 1,
     };
 
-    if !can_enter(map, x, y) {
+    if !map.can_enter(Point::new(x, y)) {
         curr
     } else {
         Position {x: x as usize, y: y as usize}

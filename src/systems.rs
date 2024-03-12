@@ -12,12 +12,23 @@ use crate::*;
 /// Duration of a powerup
 const POWERUP_DURATION : u64 = 3;
 
+/// Time between 2 random walks (ms)
+const TIME_BETWEEN_RWALKS : u64 = 760;
+
+/// Time between 2 smart moves(ms)
+const TIME_BETWEEN_SMARTMOVES : u64 = 250;
+
+/// Maximum search depth with a*
+const MAX_SEARCH_DEPTH: f32 = 25.0;
+
 /// This function creates the ECS schedule which decides when a given system should be run
 pub fn build_scheduler() -> Schedule {
     Schedule::builder()
         //.add_system(render_map_system())
         .add_system(user_input_system())
         .add_system(random_walk_system())
+        .add_system(smart_hunter_system())
+        .add_system(smart_victims_system())
         .add_system(move_intentions_system())
         .add_system(hunt_down_victim_system())
         .add_system(eat_food_system())
@@ -130,7 +141,7 @@ pub fn random_walk(
         #[resource] rng: &mut RandomNumberGenerator,
     ) {
     let now = Instant::now();
-    let next= now + Duration::from_millis(250);
+    let next= now + Duration::from_millis(TIME_BETWEEN_RWALKS);
 
     <(Entity, &mut RandomWalk)>::query()
         .iter_mut(ecs)
@@ -138,9 +149,9 @@ pub fn random_walk(
             if rwalk.time <= now {
                 let choice = rng.roll_dice(1, 4);
                 let direction   = match choice {
-                    0 => Direction::Down,
-                    1 => Direction::Right,
-                    2 => Direction::Left,
+                    1 => Direction::Down,
+                    2 => Direction::Right,
+                    3 => Direction::Left,
                     _ => Direction::Up,
                 };
 
@@ -149,6 +160,111 @@ pub fn random_walk(
             }
         })
 }
+
+
+#[system]
+#[read_component(Position)]
+#[read_component(Hunter)]
+#[read_component(Victim)]
+#[write_component(SmartBot)]
+#[write_component(IntendsToMove)]
+pub fn smart_hunter(
+        ecs: &mut SubWorld, 
+        cmd: &mut CommandBuffer,
+        #[resource] map: &Map,
+    ) {
+    
+    let now = Instant::now();
+    let next= now + Duration::from_millis(TIME_BETWEEN_SMARTMOVES);
+
+    let victims = <&Position>::query()
+        .filter(component::<Victim>())
+        .iter(ecs)
+        .map(|&Position { x, y }| map.point2d_to_index(Point::new(x, y)))
+        .collect::<Vec<_>>();
+    
+    let dijkstra = DijkstraMap::new(
+                                    map.width, 
+                                    map.height, 
+                                    &victims, 
+                                    map, 
+                                    MAX_SEARCH_DEPTH);
+    
+    <(Entity, &Position, &mut SmartBot)>::query()
+        .filter(component::<Hunter>())
+        .iter_mut(ecs)
+        .for_each(|(entity, &Position { x, y }, thirst)| {
+            let idx = map.point2d_to_index(Point::new(x, y));
+            if thirst.time <= now {
+                if let Some(dest) = DijkstraMap::find_lowest_exit(&dijkstra, idx, map) {
+                    let dest = map.index_to_point2d(dest);
+                    if dest.x < x as i32 {
+                        cmd.add_component(*entity, IntendsToMove(Direction::Left));
+                    } else if dest.x > x as i32 {
+                        cmd.add_component(*entity, IntendsToMove(Direction::Right));
+                    } else if dest.y < y as i32 {
+                        cmd.add_component(*entity, IntendsToMove(Direction::Up));
+                    } else if dest.y > y as i32 {
+                        cmd.add_component(*entity, IntendsToMove(Direction::Down));
+                    }
+                }
+                thirst.time = next;   
+            }
+        })
+}
+
+
+#[system]
+#[read_component(Position)]
+#[read_component(Hunter)]
+#[read_component(Victim)]
+#[write_component(SmartBot)]
+#[write_component(IntendsToMove)]
+pub fn smart_victims(
+        ecs: &mut SubWorld, 
+        cmd: &mut CommandBuffer,
+        #[resource] map: &Map,
+    ) {
+    
+    let now = Instant::now();
+    let next= now + Duration::from_millis(TIME_BETWEEN_SMARTMOVES);
+
+    let hunters = <&Position>::query()
+        .filter(component::<Hunter>())
+        .iter(ecs)
+        .map(|&Position { x, y }| map.point2d_to_index(Point::new(x, y)))
+        .collect::<Vec<_>>();
+    
+    let dijkstra = DijkstraMap::new(
+                                    map.width, 
+                                    map.height, 
+                                    &hunters, 
+                                    map, 
+                                    MAX_SEARCH_DEPTH);
+    
+    <(Entity, &Position, &mut SmartBot)>::query()
+        .filter(component::<Victim>())
+        .iter_mut(ecs)
+        .for_each(|(entity, &Position { x, y }, thirst)| {
+            let idx = map.point2d_to_index(Point::new(x, y));
+            if thirst.time <= now {
+                if let Some(dest) = DijkstraMap::find_highest_exit(&dijkstra, idx, map) {
+                    let dest = map.index_to_point2d(dest);
+                    if dest.x < x as i32 {
+                        cmd.add_component(*entity, IntendsToMove(Direction::Left));
+                    } else if dest.x > x as i32 {
+                        cmd.add_component(*entity, IntendsToMove(Direction::Right));
+                    } else if dest.y < y as i32 {
+                        cmd.add_component(*entity, IntendsToMove(Direction::Up));
+                    } else if dest.y > y as i32 {
+                        cmd.add_component(*entity, IntendsToMove(Direction::Down));
+                    }
+                }
+                thirst.time = next;   
+            }
+        })
+}
+
 
 #[system]
 #[write_component(Position)]

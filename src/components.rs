@@ -93,6 +93,12 @@ pub struct RandomWalk{
     pub time: Instant
 }
 
+/// The entity is blood thirsty and will walk the shortest path to the hero
+#[derive(Debug, Clone, Copy)]
+pub struct SmartBot {
+    pub time: Instant
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum Direction {
     Down = 0,
