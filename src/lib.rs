@@ -9,8 +9,6 @@
 pub mod utils;
 /// any resource manipulated by the game
 pub mod resources;
-/// any game object
-pub mod entities;
 /// properties of the entities
 pub mod components;
 /// game logic
@@ -22,7 +20,6 @@ pub mod spawn;
 
 pub use utils::*;
 pub use resources::*;
-pub use entities::*;
 pub use components::*;
 pub use systems::*;
 pub use game_state::*;

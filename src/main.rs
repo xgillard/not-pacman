@@ -1,4 +1,5 @@
-use pacman::{main_loop, BResult, BTermBuilder, State};
+use legion::Schedule;
+use pacman::{main_loop, render_map_system, BResult, BTermBuilder, State};
 
 fn main() -> BResult<()> {
     let mut state = State::new();
@@ -15,6 +16,13 @@ fn main() -> BResult<()> {
         .with_simple_console_no_bg(w, h,"pacman32.png")
         .with_simple_console_no_bg(w, h,"pacman32.png")
         .build()?;
+
+    // initialization systems
+    Schedule::builder()
+        .add_system(render_map_system())
+        .build()
+        .execute(&mut state.ecs, &mut state.resources)
+        ;
 
     main_loop(context, state)?;
 

@@ -12,9 +12,9 @@ use legion::{world::World, Resources, Schedule};
 use crate::*;
 
 pub struct State {
-    ecs: World,
-    resources: Resources,
-    systems: Schedule,
+    pub ecs: World,
+    pub resources: Resources,
+    pub systems: Schedule,
 }
 impl Default for State {
     fn default() -> Self {
@@ -84,8 +84,8 @@ impl State {
 
 impl GameState for State {
     fn tick(&mut self, ctx: &mut bracket_lib::prelude::BTerm) {
-        ctx.set_active_console(0);
-        ctx.cls();
+        // the map is never redrawn (this is to save compute resources) hence, we
+        // do not need to activate and clear the console 0.
         ctx.set_active_console(1);
         ctx.cls();
         ctx.set_active_console(2);

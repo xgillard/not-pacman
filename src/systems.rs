@@ -15,14 +15,19 @@ const POWERUP_DURATION : u64 = 3;
 /// This function creates the ECS schedule which decides when a given system should be run
 pub fn build_scheduler() -> Schedule {
     Schedule::builder()
-        .add_system(render_map_system())
+        //.add_system(render_map_system())
         .add_system(user_input_system())
         .add_system(random_walk_system())
-        .add_system(superfood_system())
-        .add_system(eat_food_system())
+        .add_system(move_intentions_system())
         .add_system(hunt_down_victim_system())
-        .add_system(reset_roles_system())
-        .add_system(render_entities_system())
+        .add_system(eat_food_system())
+        .add_system(superfood_system())
+        .add_system(swap_roles_system())
+        .add_system(render_food_system())
+        .add_system(render_characters_system())
+        .add_system(delayed_swaps_system())
+        .flush()
+        .add_system(remove_dead_system())
         .build()
 }
 
@@ -51,77 +56,122 @@ pub fn render_map(#[resource] map: &Map) {
 
 /// This system renders all entities in the world
 #[system]
-#[read_component(Render)]
+#[read_component(Food)]
 #[read_component(Position)]
-pub fn render_entities(ecs: &SubWorld) {
-    let mut foodbatch = DrawBatch::new();
-    foodbatch.target(1);
+pub fn render_food(ecs: &SubWorld) {
+    let mut batch = DrawBatch::new();
+    batch.target(1);
 
-    <(&Position, &Render)>::query()
-        .filter(component::<Food>())
+    <(&Position, &Food)>::query()
         .iter(ecs)
-        .for_each(|(pos, render)| {
-            foodbatch.set(
+        .for_each(|(pos, food)| {
+            batch.set(
                 pos.into_point(),
-                render.color,
-                render.glyph,
+                ColorPair::new(WHITE, BLACK),
+                to_cp437(food.0),
             );
         });
 
-    foodbatch.submit(10_000).expect("draw entity error");
+    batch.submit(5_000).expect("draw entity error");
+}
 
+#[system]
+#[read_component(Character)]
+#[read_component(Position)]
+#[read_component(ColorPair)]
+#[read_component(Direction)]
+pub fn render_characters(ecs: &SubWorld) {
+    let mut batch = DrawBatch::new();
+    batch.target(2);
 
-    let mut charactersbatch = DrawBatch::new();
-    foodbatch.target(2);
-
-    <(&Position, &Render)>::query()
-        .filter(component::<Character>())
+    <(&Position, &Character, &Direction, &ColorPair)>::query()
         .iter(ecs)
-        .for_each(|(pos, render)| {
-            charactersbatch.set(
+        .for_each(|(pos, character, direction, color)| {
+            batch.set(
                 pos.into_point(),
-                render.color,
-                render.glyph,
+                *color,
+                to_cp437(character.0[*direction as usize]),
             );
         });
 
-    charactersbatch.submit(10_000).expect("draw entity error");
+    batch.submit(10_000).expect("draw entity error");
 }
 
 /// This system deals with the user input
 #[system]
-#[read_component(Position)]
-#[write_component(Position)]
+#[read_component(Hero)]
 pub fn user_input(
     ecs: &mut SubWorld,
-    #[resource] map: &Map,
-    #[resource] key: &Option<VirtualKeyCode>
+    #[resource] key: &Option<VirtualKeyCode>,
+    cmd: &mut CommandBuffer
 ) {
     if let Some(key) = key {
-        let movement = match key {
-            VirtualKeyCode::Left  => (-1, 0),
-            VirtualKeyCode::Right => ( 1, 0),
-            VirtualKeyCode::Up    => ( 0,-1),
-            VirtualKeyCode::Down  => ( 0, 1),
-            _                     => ( 0, 0),
+        let direction = match key {
+            VirtualKeyCode::Left  => Direction::Left,
+            VirtualKeyCode::Right => Direction::Right,
+            VirtualKeyCode::Up    => Direction::Up,
+            _                     => Direction::Down,
         };
-        <&mut Position>::query()
-            .filter(component::<Player>())
-            .iter_mut(ecs)
-            .for_each(|pos| {
-                *pos = next_position(map, *pos, movement);
-            })
+
+        <Entity>::query()
+            .filter(component::<Hero>())
+            .iter(ecs)
+            .for_each(|entity| cmd.add_component(*entity, IntendsToMove(direction)));
     }
+}
+
+
+#[system]
+#[write_component(RandomWalk)]
+#[write_component(IntendsToMove)]
+pub fn random_walk(
+        ecs: &mut SubWorld, 
+        cmd: &mut CommandBuffer,
+        #[resource] rng: &mut RandomNumberGenerator,
+    ) {
+    let now = Instant::now();
+    let next= now + Duration::from_millis(250);
+
+    <(Entity, &mut RandomWalk)>::query()
+        .iter_mut(ecs)
+        .for_each(|(entity, rwalk)| {
+            if rwalk.time <= now {
+                let choice = rng.roll_dice(1, 4);
+                let direction   = match choice {
+                    0 => Direction::Down,
+                    1 => Direction::Right,
+                    2 => Direction::Left,
+                    _ => Direction::Up,
+                };
+
+                cmd.add_component(*entity, IntendsToMove(direction));
+                rwalk.time = next;   
+            }
+        })
+}
+
+#[system]
+#[write_component(Position)]
+#[write_component(Direction)]
+#[write_component(IntendsToMove)]
+pub fn move_intentions(ecs: &mut SubWorld, cmd: &mut CommandBuffer, #[resource] map: &Map) {
+    <(Entity, &mut Position, &mut Direction, &IntendsToMove)>::query()
+        .iter_mut(ecs)
+        .for_each(|(entity, position, direction, intention)| {
+            cmd.remove_component::<IntendsToMove>(*entity);
+            *direction = intention.0;
+            *position  = next_position(map, *position, intention.0);
+        });
 }
 
 #[system]
 #[read_component(Position)]
-#[read_component(Player)]
+#[read_component(Hero)]
 #[read_component(Food)]
 pub fn eat_food(ecs: &mut SubWorld, cmd: &mut CommandBuffer) {
     let mut hero = Position::default();
     <&Position>::query()
-        .filter(component::<Player>())
+        .filter(component::<Hero>())
         .iter(ecs)
         .for_each(|p| hero = *p);
 
@@ -130,67 +180,69 @@ pub fn eat_food(ecs: &mut SubWorld, cmd: &mut CommandBuffer) {
         .iter(ecs)
         .for_each(|(entity, pos)| 
             if *pos == hero { 
-                cmd.remove(*entity) 
+                cmd.add_component(*entity, Dead); 
             });
 }
 
 #[system]
 #[read_component(Position)]
-#[read_component(Player)]
-#[read_component(Superfood)]
-#[read_component(Naughty)]
-#[write_component(Food)]
-#[write_component(Victim)]
-#[write_component(Render)]
+#[read_component(Powerup)]
+#[read_component(Hero)]
+#[read_component(Villain)]
+#[write_component(DelayedSwapRole)]
 pub fn superfood(ecs: &mut SubWorld, cmd: &mut CommandBuffer) {
-    let mut hero = Position::default();
-    <&Position>::query()
-        .filter(component::<Player>())
+    let hero = <&Position>::query()
+        .filter(component::<Hero>())
         .iter(ecs)
-        .for_each(|p| hero = *p);
+        .next();
 
-    let mut villain_as_food = false;
-    <(Entity, &Position)>::query()
-        .filter(component::<Superfood>())
-        .iter(ecs)
-        .for_each(|(entity, pos)| 
-            if *pos == hero { 
-                cmd.remove(*entity);
-                villain_as_food = true;
-            });
-    
-    if villain_as_food {
-        // after superfood, the hero is no longer a victim
-        <(Entity, &mut Render)>::query()
-            .filter(component::<Player>())
-            .iter_mut(ecs)
-            .for_each(|(entity, render)| {
-                render.color = ColorPair::new(RED, BLACK);
-
-                cmd.remove_component::<Victim>(*entity);
-                cmd.add_component(*entity, Hunter);
-                cmd.add_component(*entity, ResetRoles {
-                    instant: Instant::now() + Duration::from_secs(POWERUP_DURATION),
-                    add: Role::Victim,
-                    remove: Role::Hunter
-                });
-            });
+    if let Some(hero) = hero {
+        let villain_as_food = <&Position>::query()
+            .filter(component::<Powerup>())
+            .iter(ecs)
+            .any(|pos| pos == hero);
         
-        // after superfood, the villains are all food
-        <(Entity, &mut Render)>::query()
-            .filter(component::<Naughty>())
-            .iter_mut(ecs)
-            .for_each(|(entity, render)| {
-                render.color = ColorPair::new(RED, BLACK);
-
-                cmd.remove_component::<Hunter>(*entity);
-                cmd.add_component(*entity, Victim);
-                cmd.add_component(*entity, ResetRoles {
-                    instant: Instant::now() + Duration::from_secs(POWERUP_DURATION),
-                    add: Role::Hunter,
-                    remove: Role::Victim
+        if villain_as_food {
+            // after superfood, the hero is no longer a victim
+            <Entity>::query()
+                .filter(component::<Hero>())
+                .iter_mut(ecs)
+                .for_each(|entity| {
+                    cmd.add_component(*entity, SwapRole{
+                        add: Role::Hunter, 
+                        remove: Role::Victim,
+                        color: ColorPair::new(RED, BLACK)
+                    });
+                    cmd.add_component(*entity, DelayedSwapRole {
+                        time: Instant::now() + Duration::from_secs(POWERUP_DURATION),
+                        swap: SwapRole{
+                            add: Role::Victim, 
+                            remove: Role::Hunter,
+                            color: ColorPair::new(WHITE, BLACK)
+                        }
+                    });
                 });
-            })
+            
+            // after superfood, the villains are no longer hunters
+            <Entity>::query()
+                .filter(component::<Villain>())
+                .iter_mut(ecs)
+                .for_each(|entity| {
+                    cmd.add_component(*entity, SwapRole {
+                        add: Role::Victim, 
+                        remove: Role::Hunter,
+                        color: ColorPair::new(RED, BLACK)
+                    });
+                    cmd.add_component(*entity, DelayedSwapRole {
+                        time: Instant::now() + Duration::from_secs(POWERUP_DURATION),
+                        swap: SwapRole{
+                            add: Role::Hunter, 
+                            remove: Role::Victim,
+                            color: ColorPair::new(WHITE, BLACK)
+                        }
+                    });
+                });
+        }
     }
 }
 
@@ -208,67 +260,57 @@ pub fn hunt_down_victim(ecs: &mut SubWorld, cmd: &mut CommandBuffer) {
                 .iter(ecs)
                 .for_each(|(entity, victim)| {
                     if hunter == victim {
-                        cmd.remove(*entity);
+                        cmd.add_component(*entity, Dead);
                     }
                 })
         });
 }
 
 #[system]
-#[read_component(ResetRoles)]
-#[write_component(ResetRoles)]
+#[write_component(SwapRole)]
 #[write_component(Hunter)]
 #[write_component(Victim)]
-#[write_component(Render)]
-pub fn reset_roles(ecs: &mut SubWorld, cmd: &mut CommandBuffer) {
-    let now = Instant::now();
-    <(Entity, &ResetRoles, &mut Render)>::query()
+#[write_component(ColorPair)]
+pub fn swap_roles(ecs: &mut SubWorld, cmd: &mut CommandBuffer) {
+    <(Entity, &SwapRole, &mut ColorPair)>::query()
         .iter_mut(ecs)
-        .for_each(|(entity, reset, render)| {
-            if now >= reset.instant {
-                match reset.remove {
-                    Role::Victim => cmd.remove_component::<Victim>(*entity),
-                    Role::Hunter => cmd.remove_component::<Hunter>(*entity)
-                }
+        .for_each(|(entity, swap, color)| {
+            match swap.remove {
+                Role::Victim => cmd.remove_component::<Victim>(*entity),
+                Role::Hunter => cmd.remove_component::<Hunter>(*entity)
+            }
 
-                match reset.add {
-                    Role::Victim => cmd.add_component(*entity, Victim),
-                    Role::Hunter => cmd.add_component(*entity, Hunter)
-                }
+            match swap.add {
+                Role::Victim => cmd.add_component(*entity, Victim),
+                Role::Hunter => cmd.add_component(*entity, Hunter)
+            }
 
-                cmd.remove_component::<ResetRoles>(*entity);
-                render.color = ColorPair::new(WHITE, BLACK);
+            *color = swap.color;
+            cmd.remove_component::<SwapRole>(*entity);
+        });
+}
+
+#[system]
+#[write_component(DelayedSwapRole)]
+#[write_component(SwapRole)]
+pub fn delayed_swaps(ecs: &mut SubWorld, cmd: &mut CommandBuffer) {
+    let now = Instant::now();
+
+    <(Entity, &DelayedSwapRole)>::query()
+        .iter_mut(ecs)
+        .for_each(|(entity, action)| {
+            if action.time < now {
+                cmd.add_component(*entity, action.swap);
+                cmd.remove_component::<DelayedSwapRole>(*entity);
             }
         });
 }
 
-
 #[system]
-#[write_component(RandomWalk)]
-#[write_component(Position)]
-pub fn random_walk(
-        ecs: &mut SubWorld, 
-        #[resource] rng: &mut RandomNumberGenerator,
-        #[resource] map: &Map
-    ) {
-    let now = Instant::now();
-    let next= now + Duration::from_millis(250);
-
-    <(&mut RandomWalk, &mut Position)>::query()
-        .iter_mut(ecs)
-        .for_each(|(rwalk, pos)| {
-            if rwalk.0 <= now {
-                let choice = rng.roll_dice(1, 4);
-                let movement = match choice {
-                    1 => (1, 0),
-                    2 => (-1, 0),
-                    3 => (0, 1),
-                    4 => (0, -1),
-                    _ => (0, 0)
-                };
-
-                *pos   = next_position(map, *pos, movement);
-                *rwalk = RandomWalk(next);
-            }
-        })
+#[read_component(Dead)]
+pub fn remove_dead(ecs: &mut SubWorld, cmd: &mut CommandBuffer) {
+    <Entity>::query()
+        .filter(component::<Dead>())
+        .iter(ecs)
+        .for_each(|entity| cmd.remove(*entity));
 }
