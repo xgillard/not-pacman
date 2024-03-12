@@ -11,6 +11,13 @@ use std::{fs::File, io::{BufReader, Read}};
 use legion::{world::World, Resources, Schedule};
 use crate::*;
 
+#[derive(Debug, Clone, Copy)]
+pub enum GameStatus {
+    Running,
+    Lost,
+    Won
+}
+
 pub struct State {
     pub ecs: World,
     pub resources: Resources,
@@ -28,6 +35,7 @@ impl State {
         let mut resources = Resources::default();
         let rng = RandomNumberGenerator::new();
         resources.insert(rng);
+        resources.insert(GameStatus::Running);
         Self { ecs, resources, systems }
     }
 
@@ -97,8 +105,18 @@ impl GameState for State {
         // Any two resources with the same type will be replaced by one another
         // in the ecs. There is thus no need to think of duplicates in this context
         self.resources.insert(ctx.key);
+        
+        let status = self.resources.get::<GameStatus>().as_deref().copied().unwrap();
+        match status {
+            GameStatus::Running => 
+                self.systems.execute(&mut self.ecs, &mut self.resources),
+            GameStatus::Lost => 
+                {}, // TODO
+            GameStatus::Won => 
+                {}  // TODO
+        }
         // 
-        self.systems.execute(&mut self.ecs, &mut self.resources);
+        
         // effectively draw everything on screen (in batch to be more efficient)
         render_draw_buffer(ctx).expect("could not render");
     }

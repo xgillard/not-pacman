@@ -39,6 +39,8 @@ pub fn build_scheduler() -> Schedule {
         .add_system(delayed_swaps_system())
         .flush()
         .add_system(remove_dead_system())
+        .flush()
+        .add_system(has_lost_system())
         .build()
 }
 
@@ -429,4 +431,16 @@ pub fn remove_dead(ecs: &mut SubWorld, cmd: &mut CommandBuffer) {
         .filter(component::<Dead>())
         .iter(ecs)
         .for_each(|entity| cmd.remove(*entity));
+}
+
+#[system]
+#[read_component(Hero)]
+pub fn has_lost(ecs: &mut SubWorld, #[resource] status: &mut GameStatus) {
+    let cnt = <Entity>::query()
+        .filter(component::<Hero>())
+        .iter(ecs)
+        .count();
+    if cnt == 0 {
+        *status = GameStatus::Lost;
+    }
 }
