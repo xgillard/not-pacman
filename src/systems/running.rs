@@ -1,4 +1,5 @@
-//! The systems are the bits of code providing the game logic.
+//! The systems are the bits of code providing the game logic. 
+//! This module provides an implementation of the systems for when the game is running
 //! 
 //! Author:  X. Gillard
 //! Date:    March 2023
@@ -22,17 +23,20 @@ const TIME_BETWEEN_SMARTMOVES : u64 = 250;
 const MAX_SEARCH_DEPTH: f32 = 25.0;
 
 /// This function creates the ECS schedule which decides when a given system should be run
-pub fn build_scheduler() -> Schedule {
+pub fn run_game_schedule() -> Schedule {
     Schedule::builder()
         //.add_system(render_map_system())
         .add_system(user_input_system())
         .add_system(random_walk_system())
         .add_system(smart_hunter_system())
         .add_system(smart_victims_system())
-        .add_system(move_intentions_system())
-        .add_system(hunt_down_victim_system())
+        .flush()
+        .add_system(move_to_next_place_system())
+        .flush()
         .add_system(eat_food_system())
-        .add_system(superfood_system())
+        .add_system(kill_victim_system())
+        .add_system(eat_powerup_system())
+        .flush()
         .add_system(swap_roles_system())
         .add_system(render_food_system())
         .add_system(render_characters_system())
@@ -41,6 +45,7 @@ pub fn build_scheduler() -> Schedule {
         .add_system(remove_dead_system())
         .flush()
         .add_system(has_lost_system())
+        .add_system(has_won_system())
         .build()
 }
 
@@ -272,7 +277,7 @@ pub fn smart_victims(
 #[write_component(Position)]
 #[write_component(Direction)]
 #[write_component(IntendsToMove)]
-pub fn move_intentions(ecs: &mut SubWorld, cmd: &mut CommandBuffer, #[resource] map: &Map) {
+pub fn move_to_next_place(ecs: &mut SubWorld, cmd: &mut CommandBuffer, #[resource] map: &Map) {
     <(Entity, &mut Position, &mut Direction, &IntendsToMove)>::query()
         .iter_mut(ecs)
         .for_each(|(entity, position, direction, intention)| {
@@ -308,7 +313,7 @@ pub fn eat_food(ecs: &mut SubWorld, cmd: &mut CommandBuffer) {
 #[read_component(Hero)]
 #[read_component(Villain)]
 #[write_component(DelayedSwapRole)]
-pub fn superfood(ecs: &mut SubWorld, cmd: &mut CommandBuffer) {
+pub fn eat_powerup(ecs: &mut SubWorld, cmd: &mut CommandBuffer) {
     let hero = <&Position>::query()
         .filter(component::<Hero>())
         .iter(ecs)
@@ -368,7 +373,7 @@ pub fn superfood(ecs: &mut SubWorld, cmd: &mut CommandBuffer) {
 #[read_component(Position)]
 #[read_component(Hunter)]
 #[read_component(Victim)]
-pub fn hunt_down_victim(ecs: &mut SubWorld, cmd: &mut CommandBuffer) {
+pub fn kill_victim(ecs: &mut SubWorld, cmd: &mut CommandBuffer) {
     <&Position>::query()
         .filter(component::<Hunter>())
         .iter(ecs)
@@ -442,5 +447,16 @@ pub fn has_lost(ecs: &mut SubWorld, #[resource] status: &mut GameStatus) {
         .count();
     if cnt == 0 {
         *status = GameStatus::Lost;
+    }
+}
+#[system]
+#[read_component(Food)]
+pub fn has_won(ecs: &mut SubWorld, #[resource] status: &mut GameStatus) {
+    let cnt = <Entity>::query()
+        .filter(component::<Food>())
+        .iter(ecs)
+        .count();
+    if cnt == 0 {
+        *status = GameStatus::Won;
     }
 }

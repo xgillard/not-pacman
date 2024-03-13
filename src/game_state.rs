@@ -13,6 +13,7 @@ use crate::*;
 
 #[derive(Debug, Clone, Copy)]
 pub enum GameStatus {
+    NotStarted,
     Running,
     Lost,
     Won
@@ -21,7 +22,10 @@ pub enum GameStatus {
 pub struct State {
     pub ecs: World,
     pub resources: Resources,
-    pub systems: Schedule,
+    pub running: Schedule,
+    pub won: Schedule,
+    pub lost: Schedule,
+    pub map_file: String,
 }
 impl Default for State {
     fn default() -> Self {
@@ -31,15 +35,19 @@ impl Default for State {
 impl State {
     pub fn new() -> Self {
         let ecs = World::default();
-        let systems = build_scheduler();
+        let running = run_game_schedule();
+        let won = won_game_schedule();
+        let lost= lost_game_schedule();
         let mut resources = Resources::default();
         let rng = RandomNumberGenerator::new();
         resources.insert(rng);
         resources.insert(GameStatus::Running);
-        Self { ecs, resources, systems }
+        Self { ecs, resources, running, won, lost, map_file: String::new() }
     }
 
     pub fn load_file(&mut self, fname: &str) -> Result<(usize, usize), std::io::Error> {
+        self.map_file = fname.to_string();
+
         let mut value = String::new();
         BufReader::new(File::open(fname)?).read_to_string(&mut value)?;
     
@@ -94,10 +102,13 @@ impl GameState for State {
     fn tick(&mut self, ctx: &mut bracket_lib::prelude::BTerm) {
         // the map is never redrawn (this is to save compute resources) hence, we
         // do not need to activate and clear the console 0.
-        ctx.set_active_console(1);
+        ctx.set_active_console(1); // food
         ctx.cls();
-        ctx.set_active_console(2);
+        ctx.set_active_console(2); // characters
         ctx.cls();
+        ctx.set_active_console(3); // message
+        ctx.cls();
+        ctx.set_all_alpha(0.0, 0.0); // by default the message console is transparent
 
         // this keeps track of the key that has potentially been pressed and saves
         // it as a resource in the game world.
@@ -108,12 +119,19 @@ impl GameState for State {
         
         let status = self.resources.get::<GameStatus>().as_deref().copied().unwrap();
         match status {
-            GameStatus::Running => 
-                self.systems.execute(&mut self.ecs, &mut self.resources),
+            GameStatus::NotStarted =>
+                {
+                    self.ecs.clear();
+                    let map = self.map_file.clone();
+                    self.load_file(&map).expect("could not reload map");
+                    self.resources.insert(GameStatus::Running);
+                },
+            GameStatus::Running => {
+                self.running.execute(&mut self.ecs, &mut self.resources)},
             GameStatus::Lost => 
-                {}, // TODO
+                self.lost.execute(&mut self.ecs, &mut self.resources),
             GameStatus::Won => 
-                {}  // TODO
+                self.won.execute(&mut self.ecs, &mut self.resources),
         }
         // 
         
