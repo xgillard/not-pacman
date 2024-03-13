@@ -23,6 +23,9 @@ Section "PasCman (required)"
   CreateShortCut "$SMPROGRAMS\PasCman\PasCman.lnk" "$INSTDIR\pas-cman.exe"
 
   CreateShortCut "$DESKTOP\PasCman.lnk" "$INSTDIR\pas-cman.exe"
+
+  WriteUninstaller "$INSTDIR\uninstall.exe"
+  CreateShortCut "$SMPROGRAMS\PasCman\uninstall.lnk" "$INSTDIR\uninstall.exe"
 SectionEnd
 
 Section "Uninstall"
