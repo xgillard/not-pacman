@@ -1272,14 +1272,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pacman"
-version = "0.1.0"
-dependencies = [
- "bracket-lib",
- "legion",
-]
-
-[[package]]
 name = "parking_lot"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1325,6 +1317,14 @@ dependencies = [
  "redox_syscall 0.4.1",
  "smallvec",
  "windows-targets 0.48.5",
+]
+
+[[package]]
+name = "pas-cman"
+version = "0.1.0"
+dependencies = [
+ "bracket-lib",
+ "legion",
 ]
 
 [[package]]

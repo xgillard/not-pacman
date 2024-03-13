@@ -1,6 +1,8 @@
-# Not Pacman
+# Pas-Cman
 
 ![Screen Shot](ScreenShot.png "ScreenShot")
+
+Pas-cman c'est pas pacman -- Pas-cman is not Pacman. 
 
 This implements a game that -- I guess -- you should already know how to play.
 Obviously, any resemblance with a famous game from the 80s is purely accidental ;-)

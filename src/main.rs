@@ -1,5 +1,5 @@
 use legion::Schedule;
-use pacman::{main_loop, render_map_system, BResult, BTermBuilder, State};
+use pas_cman::{main_loop, render_map_system, BResult, BTermBuilder, State};
 
 fn main() -> BResult<()> {
     let mut state = State::new();
